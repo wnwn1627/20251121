@@ -61,3 +61,33 @@ python binomial_option.py monte-carlo \
 
 For a plain European call payoff, you could pass
 ``--payoff-expr "max(path[-1] - 100, 0)"``.
+
+## Web-based Monte Carlo calculator
+
+A lightweight Flask server provides a browser UI for Monte Carlo pricing using
+geometric Brownian motion paths.
+
+### Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### Run the server
+
+```bash
+python web_app.py
+```
+
+Open http://127.0.0.1:5000/ in your browser. Fill in market parameters (spot,
+strike, maturity, risk-free rate, volatility), simulation settings (time steps
+per path, number of paths, optional seed), and pick a payoff type:
+
+- **European call/put:** Uses ``max(S_T - K, 0)`` or ``max(K - S_T, 0)``.
+- **Custom expression:** Provide a Python expression that references ``path``
+  (list of simulated spot prices) and utility functions ``math``, ``max``,
+  ``min``, ``sum``, and ``len``. For example, ``max(sum(path)/len(path) - 100,
+  0)`` prices an arithmetic Asian call.
+
+After submitting the form, the page reports the discounted Monte Carlo price and
+an approximate 95% confidence interval.
