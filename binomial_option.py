@@ -5,6 +5,7 @@ American call/put options using the Cox-Ross-Rubinstein binomial tree.
 """
 from __future__ import annotations
 
+import argparse
 import math
 import random
 from typing import Callable, Literal, NamedTuple, Sequence
@@ -157,33 +158,79 @@ def monte_carlo_option_price(
 
 
 if __name__ == "__main__":
-    binomial_price = binomial_option_price(
-        spot=100,
-        strike=100,
-        maturity=1.0,
-        risk_free_rate=0.05,
-        volatility=0.2,
-        steps=200,
-        option_type="call",
-        american=False,
-    )
-    print(f"European call price (binomial): {binomial_price:.4f}")
+    parser = argparse.ArgumentParser(description="Option pricing utilities")
+    subparsers = parser.add_subparsers(dest="command", required=False)
 
-    def asian_call_payoff(path: Sequence[float]) -> float:
-        average_price = sum(path) / len(path)
-        return max(average_price - 100, 0.0)
+    demo_parser = subparsers.add_parser("demo", help="Run built-in pricing examples")
+    demo_parser.set_defaults(command="demo")
 
-    mc_result = monte_carlo_option_price(
-        payoff=asian_call_payoff,
-        spot=100,
-        maturity=1.0,
-        risk_free_rate=0.05,
-        volatility=0.2,
-        steps=252,
-        paths=20_000,
-        seed=7,
+    mc_parser = subparsers.add_parser(
+        "monte-carlo", help="Monte Carlo pricing with a custom payoff expression"
     )
-    print(
-        "Asian call price (Monte Carlo): "
-        f"{mc_result.price:.4f} ± {1.96 * mc_result.standard_error:.4f} (95% CI)"
+    mc_parser.add_argument("--payoff-expr", required=True, help="Python expression for payoff")
+    mc_parser.add_argument("--spot", type=float, default=100.0, help="Initial spot price")
+    mc_parser.add_argument("--maturity", type=float, default=1.0, help="Time to maturity (years)")
+    mc_parser.add_argument(
+        "--risk-free-rate",
+        type=float,
+        default=0.05,
+        help="Continuously compounded annual risk-free rate",
     )
+    mc_parser.add_argument("--volatility", type=float, default=0.2, help="Annual volatility")
+    mc_parser.add_argument("--steps", type=int, default=252, help="Time steps per path")
+    mc_parser.add_argument("--paths", type=int, default=20_000, help="Number of Monte Carlo paths")
+    mc_parser.add_argument("--seed", type=int, default=None, help="Optional RNG seed")
+
+    args = parser.parse_args()
+
+    if args.command is None or args.command == "demo":
+        binomial_price = binomial_option_price(
+            spot=100,
+            strike=100,
+            maturity=1.0,
+            risk_free_rate=0.05,
+            volatility=0.2,
+            steps=200,
+            option_type="call",
+            american=False,
+        )
+        print(f"European call price (binomial): {binomial_price:.4f}")
+
+        def asian_call_payoff(path: Sequence[float]) -> float:
+            average_price = sum(path) / len(path)
+            return max(average_price - 100, 0.0)
+
+        mc_result = monte_carlo_option_price(
+            payoff=asian_call_payoff,
+            spot=100,
+            maturity=1.0,
+            risk_free_rate=0.05,
+            volatility=0.2,
+            steps=252,
+            paths=20_000,
+            seed=7,
+        )
+        print(
+            "Asian call price (Monte Carlo): "
+            f"{mc_result.price:.4f} ± {1.96 * mc_result.standard_error:.4f} (95% CI)"
+        )
+    elif args.command == "monte-carlo":
+        allowed_globals = {"math": math, "max": max, "min": min, "sum": sum, "len": len}
+
+        def expr_payoff(path: Sequence[float]) -> float:
+            return float(eval(args.payoff_expr, allowed_globals, {"path": path}))
+
+        mc_result = monte_carlo_option_price(
+            payoff=expr_payoff,
+            spot=args.spot,
+            maturity=args.maturity,
+            risk_free_rate=args.risk_free_rate,
+            volatility=args.volatility,
+            steps=args.steps,
+            paths=args.paths,
+            seed=args.seed,
+        )
+        print(
+            f"Monte Carlo price: {mc_result.price:.4f} "
+            f"± {1.96 * mc_result.standard_error:.4f} (95% CI)"
+        )
